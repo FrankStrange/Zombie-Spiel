@@ -26,58 +26,122 @@ class MainScene extends Phaser.Scene {
     g.clear(); g.fillStyle(0x2b3a44, 1); g.fillRect(0, 0, 32, 32);
     g.generateTexture("wall", 32, 32);
 
+
+    // Tile textures (50x50) for a more "tilemap" look
+    g.clear();
+    g.fillStyle(0x12331f, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.fillStyle(0x1b4a2b, 0.35);
+    for (let i = 0; i < 20; i++) {
+      const x = Phaser.Math.Between(2, 48);
+      const y = Phaser.Math.Between(2, 48);
+      g.fillCircle(x, y, Phaser.Math.Between(1, 3));
+    }
+    g.generateTexture("tile_grass", 50, 50);
+
+    g.clear();
+    g.fillStyle(0x3a2f22, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.fillStyle(0x2b241b, 0.35);
+    for (let i = 0; i < 18; i++) {
+      const x = Phaser.Math.Between(2, 48);
+      const y = Phaser.Math.Between(2, 48);
+      g.fillRect(x, y, Phaser.Math.Between(1, 4), Phaser.Math.Between(1, 3));
+    }
+    g.generateTexture("tile_dirt", 50, 50);
+
+    g.clear();
+    g.fillStyle(0x21313b, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.lineStyle(1, 0x2f4554, 0.55);
+    for (let x = 0; x <= 50; x += 10) g.lineBetween(x, 0, x, 50);
+    for (let y = 0; y <= 50; y += 10) g.lineBetween(0, y, 50, y);
+    g.generateTexture("tile_floor", 50, 50);
+
+    g.clear();
+    g.fillStyle(0x0a3a5a, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.fillStyle(0x0f5278, 0.35);
+    for (let i = 0; i < 10; i++) {
+      const x = Phaser.Math.Between(0, 49);
+      const y = Phaser.Math.Between(0, 49);
+      g.fillCircle(x, y, Phaser.Math.Between(2, 6));
+    }
+    g.generateTexture("tile_water", 50, 50);
+
+    g.clear();
+    g.fillStyle(0x2b3a44, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.fillStyle(0x354955, 0.35);
+    g.fillRect(0, 0, 50, 6);
+    g.fillRect(0, 44, 50, 6);
+    g.fillRect(0, 0, 6, 50);
+    g.fillRect(44, 0, 6, 50);
+    g.generateTexture("tile_wall", 50, 50);
+
+    g.clear();
+    g.fillStyle(0x7aa7ff, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.fillStyle(0x4c79b8, 0.55);
+    g.fillRect(6, 6, 38, 38);
+    g.generateTexture("tile_door", 50, 50);
+
     g.destroy();
   }
 
   create() {
     this.cameras.main.setBackgroundColor("#0b0f12");
     this.physics.world.setBounds(0, 0, WORLD.w, WORLD.h);
-    // Terrain background (simple procedural landscape)
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0b1a12, 1);
-    bg.fillRect(0, 0, WORLD.w, WORLD.h);
+    // "Tilemap"-style background (procedural, no external assets)
+    const TILE = 50;
+    const cols = Math.floor(WORLD.w / TILE);
+    const rows = Math.floor(WORLD.h / TILE);
 
-    // grass patches
-    bg.fillStyle(0x113321, 0.35);
-    for (let i = 0; i < 220; i++) {
-      const x = Phaser.Math.Between(0, WORLD.w);
-      const y = Phaser.Math.Between(0, WORLD.h);
-      const r = Phaser.Math.Between(40, 140);
-      bg.fillCircle(x, y, r);
+    this.terrain = Array.from({ length: rows }, () => Array.from({ length: cols }, () => "grass"));
+
+    // Dirt paths
+    for (let i = 0; i < 10; i++) {
+      const r = Phaser.Math.Between(2, rows - 3);
+      const start = Phaser.Math.Between(1, cols - 10);
+      const len = Phaser.Math.Between(8, 18);
+      for (let c = start; c < Math.min(cols - 1, start + len); c++) this.terrain[r][c] = "dirt";
+      if (r + 1 < rows) {
+        for (let c = start; c < Math.min(cols - 1, start + len); c++) {
+          if (Phaser.Math.Between(0, 100) < 40) this.terrain[r + 1][c] = "dirt";
+        }
+      }
     }
 
-    // dirt paths
-    bg.fillStyle(0x3a2f22, 0.55);
-    for (let i = 0; i < 12; i++) {
-      const x = Phaser.Math.Between(100, WORLD.w - 100);
-      const y = Phaser.Math.Between(100, WORLD.h - 100);
-      const w = Phaser.Math.Between(260, 520);
-      const h = Phaser.Math.Between(40, 80);
-      bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, 18);
-    }
-
-    // water ponds (also colliders)
+    // Water ponds
     this.water = this.physics.add.staticGroup();
-    bg.fillStyle(0x0a3a5a, 0.75);
-    for (let i = 0; i < 4; i++) {
-      const x = Phaser.Math.Between(250, WORLD.w - 250);
-      const y = Phaser.Math.Between(250, WORLD.h - 250);
-      const w = Phaser.Math.Between(220, 420);
-      const h = Phaser.Math.Between(160, 320);
-      bg.fillEllipse(x, y, w, h);
-
-      // invisible collider matching the pond bounds (approx)
-      const pond = this.water.create(x, y, "wall");
-      pond.setAlpha(0);
-      pond.setDisplaySize(w * 0.9, h * 0.9);
-      pond.refreshBody();
+    for (let i = 0; i < 3; i++) {
+      const cx = Phaser.Math.Between(6, cols - 7);
+      const cy = Phaser.Math.Between(6, rows - 7);
+      const pw = Phaser.Math.Between(3, 6);
+      const ph = Phaser.Math.Between(3, 5);
+      for (let rr = cy - ph; rr <= cy + ph; rr++) {
+        for (let cc = cx - pw; cc <= cx + pw; cc++) {
+          if (rr < 0 || cc < 0 || rr >= rows || cc >= cols) continue;
+          if (Phaser.Math.Between(0, 100) < 80) this.terrain[rr][cc] = "water";
+        }
+      }
     }
 
-    // subtle grid overlay to help navigation
-    bg.lineStyle(1, 0x1b2a33, 0.18);
-    for (let x = 0; x <= WORLD.w; x += 100) bg.lineBetween(x, 0, x, WORLD.h);
-    for (let y = 0; y <= WORLD.h; y += 100) bg.lineBetween(0, y, WORLD.w, y);
-    bg.setDepth(-10);
+    const rt = this.add.renderTexture(0, 0, WORLD.w, WORLD.h).setOrigin(0, 0).setDepth(-10);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const t = this.terrain[r][c];
+        const key = t === "dirt" ? "tile_dirt" : t === "water" ? "tile_water" : "tile_grass";
+        rt.draw(key, c * TILE + TILE / 2, r * TILE + TILE / 2);
+
+        if (t === "water") {
+          const pond = this.water.create(c * TILE + TILE / 2, r * TILE + TILE / 2, "wall");
+          pond.setAlpha(0);
+          pond.setDisplaySize(TILE, TILE);
+          pond.refreshBody();
+        }
+      }
+    }
 
     // State
     this.hp = 100;
@@ -122,6 +186,8 @@ class MainScene extends Phaser.Scene {
     this.crates = this.physics.add.staticGroup();
     this.walls = this.physics.add.staticGroup();
     this.doors = this.physics.add.staticGroup();
+    this.furniture = this.physics.add.staticGroup();
+    this.interiors = [];
 
     // Simple houses
     this._spawnHouses();
@@ -131,9 +197,11 @@ class MainScene extends Phaser.Scene {
     // Collisions
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.player, this.doors);
+    this.physics.add.collider(this.player, this.furniture);
     if (this.water) this.physics.add.collider(this.player, this.water);
     this.physics.add.collider(this.zombies, this.walls);
     this.physics.add.collider(this.zombies, this.doors);
+    this.physics.add.collider(this.zombies, this.furniture);
     if (this.water) this.physics.add.collider(this.zombies, this.water);
     this.physics.add.collider(this.zombies, this.zombies);
 
@@ -324,8 +392,10 @@ class MainScene extends Phaser.Scene {
   }
 
 
+
   _spawnHouses() {
-    const blocks = [
+    // Houses: walls + real door + interior floor + furniture; also defines interior zones for loot
+    const houses = [
       { x: 420, y: 420, w: 260, h: 180 },
       { x: 980, y: 360, w: 320, h: 220 },
       { x: 1650, y: 520, w: 260, h: 260 },
@@ -333,54 +403,74 @@ class MainScene extends Phaser.Scene {
       { x: 1200, y: 1320, w: 260, h: 320 },
       { x: 1760, y: 1420, w: 320, h: 220 },
     ];
-    const t = 18;
-    for (const b of blocks) {
-      const doorSide = Phaser.Math.Between(0, 3);
-      const door = 64;
 
-      this._addWall(b.x, b.y - b.h / 2, b.w, t, doorSide === 0 ? door : 0);
-      this._addWall(b.x, b.y + b.h / 2, b.w, t, doorSide === 1 ? door : 0);
-      this._addWall(b.x - b.w / 2, b.y, t, b.h, doorSide === 2 ? door : 0);
-      this._addWall(b.x + b.w / 2, b.y, t, b.h, doorSide === 3 ? door : 0);
+    const wallT = 18;
+
+    for (const b of houses) {
+      const doorSide = Phaser.Math.Between(0, 3);
+      const doorGap = 64;
+
+      // Interior rect (floor + furniture + loot)
+      const pad = wallT + 14;
+      const interior = {
+        x: b.x - b.w / 2 + pad,
+        y: b.y - b.h / 2 + pad,
+        w: b.w - pad * 2,
+        h: b.h - pad * 2,
+      };
+      this.interiors.push(interior);
+
+      // Interior floor tiles
+      const TILE = 50;
+      const x0 = Math.floor(interior.x / TILE) * TILE;
+      const y0 = Math.floor(interior.y / TILE) * TILE;
+      const x1 = Math.ceil((interior.x + interior.w) / TILE) * TILE;
+      const y1 = Math.ceil((interior.y + interior.h) / TILE) * TILE;
+
+      for (let y = y0; y < y1; y += TILE) {
+        for (let x = x0; x < x1; x += TILE) {
+          const cx = x + TILE / 2;
+          const cy = y + TILE / 2;
+          if (cx < interior.x || cy < interior.y || cx > interior.x + interior.w || cy > interior.y + interior.h) continue;
+          this.add.image(cx, cy, "tile_floor").setDepth(-5);
+        }
+      }
+
+      // Walls (door gap on one side)
+      this._addWall(b.x, b.y - b.h / 2, b.w, wallT, doorSide === 0 ? doorGap : 0);
+      this._addWall(b.x, b.y + b.h / 2, b.w, wallT, doorSide === 1 ? doorGap : 0);
+      this._addWall(b.x - b.w / 2, b.y, wallT, b.h, doorSide === 2 ? doorGap : 0);
+      this._addWall(b.x + b.w / 2, b.y, wallT, b.h, doorSide === 3 ? doorGap : 0);
+
+      // Furniture inside
+      this._spawnFurnitureIn(interior, 3);
     }
   }
 
-  
-  _addWall(cx, cy, w, h, gap) {
-    const addBlock = (x, y, ww, hh) => {
-      const s = this.walls.create(x, y, "wall");
-      s.setDisplaySize(ww, hh);
-      s.refreshBody();
-    };
+  _spawnFurnitureIn(interior, count) {
+    const tries = 30;
 
-    const addDoor = (x, y, ww, hh) => {
-      const d = this.doors.create(x, y, "wall"); // reuse texture; we tint it
-      d.setTint(0x7aa7ff);
-      d.setAlpha(1);
-      d.setDisplaySize(ww, hh);
-      d.isOpen = false;
-      d.refreshBody();
-    };
+    for (let i = 0; i < count; i++) {
+      let placed = false;
+      for (let t = 0; t < tries && !placed; t++) {
+        const w = Phaser.Math.Between(30, 76);
+        const h = Phaser.Math.Between(22, 62);
+        const x = Phaser.Math.Between(interior.x + w / 2, interior.x + interior.w - w / 2);
+        const y = Phaser.Math.Between(interior.y + h / 2, interior.y + interior.h - h / 2);
 
-    if (!gap) {
-      addBlock(cx, cy, w, h);
-      return;
-    }
+        const centerDist = Phaser.Math.Distance.Between(x, y, interior.x + interior.w / 2, interior.y + interior.h / 2);
+        if (centerDist < 44) continue;
 
-    if (w > h) {
-      // horizontal wall with a door gap in the middle
-      const seg = (w - gap) / 2;
-      const off = (gap + seg) / 2;
-      addBlock(cx - off, cy, seg, h);
-      addBlock(cx + off, cy, seg, h);
-      addDoor(cx, cy, gap, h);
-    } else {
-      // vertical wall with a door gap in the middle
-      const seg = (h - gap) / 2;
-      const off = (gap + seg) / 2;
-      addBlock(cx, cy - off, w, seg);
-      addBlock(cx, cy + off, w, seg);
-      addDoor(cx, cy, w, gap);
+        const f = this.furniture.create(x, y, "wall");
+        f.setAlpha(0);
+        f.setDisplaySize(w, h);
+        f.refreshBody();
+
+        const vis = this.add.rectangle(x, y, w, h, 0x6b4f3a, 0.92).setDepth(-4);
+        vis.setStrokeStyle(2, 0x3b2b20, 0.6);
+
+        placed = true;
+      }
     }
   }
 
@@ -424,12 +514,36 @@ class MainScene extends Phaser.Scene {
   }
 
 
+
   _spawnCrates(n) {
-    for (let i = 0; i < n; i++) {
-      const x = Phaser.Math.Between(100, WORLD.w - 100);
-      const y = Phaser.Math.Between(100, WORLD.h - 100);
-      const c = this.crates.create(x, y, "crate");
+    // Spawn loot only inside house interiors
+    if (!this.interiors || this.interiors.length === 0) return;
+
+    const tryPlace = (interior) => {
+      const pad = 26;
+      const x = Phaser.Math.Between(interior.x + pad, interior.x + interior.w - pad);
+      const y = Phaser.Math.Between(interior.y + pad, interior.y + interior.h - pad);
+
+      let ok = true;
+      this.furniture.children.iterate((f) => {
+        if (!f || !f.active) return;
+        const dx = Math.abs(f.x - x);
+        const dy = Math.abs(f.y - y);
+        if (dx < (f.displayWidth / 2 + 20) && dy < (f.displayHeight / 2 + 20)) ok = false;
+      });
+      return ok ? { x, y } : null;
+    };
+
+    let placed = 0;
+    let safety = 0;
+    while (placed < n && safety++ < n * 50) {
+      const interior = Phaser.Utils.Array.GetRandom(this.interiors);
+      const p = tryPlace(interior);
+      if (!p) continue;
+
+      const c = this.crates.create(p.x, p.y, "crate");
       c.looted = false;
+      placed++;
     }
   }
 
