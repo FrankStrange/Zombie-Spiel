@@ -1,27 +1,21 @@
 <!doctype html>
 <html lang="de">
-<head>
-  <script>
-  console.log("INDEX.HTML läuft ✅", location.href);
-</script>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Zombie Loot Alpha (Web)</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div
-    id="game"
-    style="
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-    "
-  ></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zombie Loot Alpha (Web)</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; background: #000; }
+      #game { width: 100vw; height: 100vh; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
 
-  <script src="phaser.min.js"></script>
-  <script src="main.js"></script>
-</body>
+    <!-- Phaser lokal aus deinem Repo -->
+    <script src="phaser.min.js"></script>
 
-</body>
+    <!-- Game Code -->
+    <script src="main.js?v=1"></script>
+  </body>
 </html>
