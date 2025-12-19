@@ -48,6 +48,30 @@ class MainScene extends Phaser.Scene {
     this.score = 0;
     this.gameOver = false;
 
+    // --- Inventory ---
+    this.invOpen = false;
+    this.inv = {
+      ammoPack: 0,  // converts to reserve (+15 each)
+      medkit: 0     // heals +25 (up to 100)
+    };
+
+    // Inventory UI (Overlay)
+    this.invPanel = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, 440, 270, 0x000000, 0.78)
+      .setScrollFactor(0).setDepth(5000).setVisible(false);
+
+    this.invText = this.add.text(this.scale.width / 2 - 200, this.scale.height / 2 - 115, "", {
+      fontFamily: "system-ui, Segoe UI, Arial",
+      fontSize: "18px",
+      color: "#ffffff",
+    }).setScrollFactor(0).setDepth(5001).setVisible(false);
+
+    this.invHint = this.add.text(this.scale.width / 2 - 200, this.scale.height / 2 + 70, "", {
+      fontFamily: "system-ui, Segoe UI, Arial",
+      fontSize: "14px",
+      color: "#cbd5e1",
+    }).setScrollFactor(0).setDepth(5001).setVisible(false);
+
+
     // Player
     this.player = this.physics.add.sprite(WORLD.w / 2, WORLD.h / 2, "player");
     this.player.setCollideWorldBounds(true);
@@ -94,7 +118,7 @@ class MainScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD.w, WORLD.h);
 
     // Input
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,E,R,ENTER");
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,E,R,ENTER,I,ONE,TWO");
     this.isFiring = false;
     this.lastShotAt = 0;
     this.fireRateMs = 120;
@@ -122,17 +146,49 @@ class MainScene extends Phaser.Scene {
       align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
 
+    // Keep overlay centered on resize
+    this.scale.on("resize", () => {
+      const cx = this.scale.width / 2;
+      const cy = this.scale.height / 2;
+
+      if (this.invPanel) this.invPanel.setPosition(cx, cy);
+      if (this.invText) this.invText.setPosition(cx - 200, cy - 115);
+      if (this.invHint) this.invHint.setPosition(cx - 200, cy + 70);
+
+      if (this.gameOverText) this.gameOverText.setPosition(cx, cy);
+    });
+
+
     // Spawning
     this.spawnTimer = 0;
     this.spawnInterval = 1100;
     this.maxZombies = 18;
 
     this._updateUI();
+    this._renderInventory();
   }
 
   update(time, delta) {
     if (this.gameOver) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.ENTER)) this.scene.restart();
+      return;
+    }
+
+
+    // Inventory toggle
+    if (Phaser.Input.Keyboard.JustDown(this.keys.I)) {
+      this._toggleInventory();
+    }
+
+    // Item hotkeys (work even if inventory is closed)
+    if (Phaser.Input.Keyboard.JustDown(this.keys.ONE)) this._useMedkit();
+    if (Phaser.Input.Keyboard.JustDown(this.keys.TWO)) this._useAmmoPack();
+
+    // If inventory is open, pause gameplay controls
+    if (this.invOpen) {
+      this.player.setVelocity(0, 0);
+      this.isFiring = false;
+      this._updateUI();
       return;
     }
 
@@ -172,7 +228,56 @@ class MainScene extends Phaser.Scene {
     });
 
     this._updateUI();
+    this._renderInventory();
   }
+
+
+  _toggleInventory() {
+    this.invOpen = !this.invOpen;
+    this.invPanel.setVisible(this.invOpen);
+    this.invText.setVisible(this.invOpen);
+    this.invHint.setVisible(this.invOpen);
+    this._renderInventory();
+  }
+
+  _renderInventory() {
+    if (!this.invText || !this.invHint) return;
+    this.invText.setText(
+      `INVENTAR\n\n` +
+      `Ammo-Packs: ${this.inv.ammoPack}\n` +
+      `Medkits: ${this.inv.medkit}\n\n` +
+      `Aktuell: HP ${this.hp} | Ammo ${this.ammo}/${this.reserve}`
+    );
+
+    this.invHint.setText(
+      `I: schließen\n` +
+      `1: Medkit benutzen (+25 HP)\n` +
+      `2: Ammo-Pack -> Reserve (+15)`
+    );
+  }
+
+  _useMedkit() {
+    if (this.gameOver) return;
+    if (!this.inv || this.inv.medkit <= 0) return;
+    if (this.hp >= 100) {
+      this._flashHint("HP ist schon voll");
+      return;
+    }
+    this.inv.medkit--;
+    this.hp = clamp(this.hp + 25, 0, 100);
+    this._flashHint("Benutzt: Medkit (+25 HP)");
+    this._renderInventory();
+  }
+
+  _useAmmoPack() {
+    if (this.gameOver) return;
+    if (!this.inv || this.inv.ammoPack <= 0) return;
+    this.inv.ammoPack--;
+    this.reserve += 15;
+    this._flashHint("Benutzt: Ammo-Pack (+15 Reserve)");
+    this._renderInventory();
+  }
+
 
   _spawnHouses() {
     const blocks = [
@@ -283,20 +388,19 @@ class MainScene extends Phaser.Scene {
     best.setTint(0x6b6b6b);
 
     const roll = Phaser.Math.Between(1, 100);
-    if (roll <= 45) {
-      const add = Phaser.Math.Between(8, 20);
-      this.reserve += add;
-      this._flashHint(`Loot: +${add} Ammo`);
-    } else if (roll <= 75) {
-      const heal = Phaser.Math.Between(15, 35);
-      this.hp = clamp(this.hp + heal, 0, 100);
-      this._flashHint(`Loot: +${heal} HP`);
+    if (roll <= 55) {
+      const add = Phaser.Math.Between(1, 2);
+      this.inv.ammoPack += add;
+      this._flashHint(`Loot: +${add} Ammo-Pack`);
     } else {
-      this.fireRateMs = Math.max(70, this.fireRateMs - 10);
-      this._flashHint(`Loot: Fire rate ↑`);
+      this.inv.medkit += 1;
+      this._flashHint(`Loot: +1 Medkit`);
     }
+
     this.score += 2;
-  }
+    this._renderInventory();
+
+    }
 
   _flashHint(msg) {
     this.hint.setText(msg);
@@ -305,8 +409,8 @@ class MainScene extends Phaser.Scene {
 
   _updateUI() {
     this.ui.setText(
-      `HP: ${this.hp}   Ammo: ${this.ammo}/${this.reserve}   Score: ${this.score}\n` +
-      `WASD bewegen | Maus zielen | LMB schießen | R reload | E looten`
+      `HP: ${this.hp}   Ammo: ${this.ammo}/${this.reserve}   Packs: ${this.inv?.ammoPack ?? 0}   Med: ${this.inv?.medkit ?? 0}   Score: ${this.score}\n` +
+      `WASD bewegen | Maus zielen | LMB schießen | R reload | E looten | I Inventar | 1 Medkit | 2 Ammo-Pack`
     );
   }
 
