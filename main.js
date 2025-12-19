@@ -251,6 +251,7 @@ class MainScene extends Phaser.Scene {
     this.doors = this.physics.add.staticGroup();
     this.furniture = this.physics.add.staticGroup();
     this.interiors = [];
+    this.interiorShades = [];
 
     // Simple houses
     this._spawnHouses();
@@ -301,12 +302,7 @@ class MainScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (p) => { if (!this.gameOver && p.leftButtonDown()) this.isFiring = true; });
     this.input.on("pointerup", () => { this.isFiring = false; });
-
-
     // --- Interior shading (slightly darker rooms)
-    this.interiorShades = [];
-    // created in _spawnHouses after interiors are known
-
     // --- Darkness + player light (soft circle hole)
     this.darkRect = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.55)
       .setOrigin(0, 0).setScrollFactor(0).setDepth(3500);
