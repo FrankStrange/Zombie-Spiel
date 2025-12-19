@@ -303,14 +303,7 @@ class MainScene extends Phaser.Scene {
     this.input.on("pointerdown", (p) => { if (!this.gameOver && p.leftButtonDown()) this.isFiring = true; });
     this.input.on("pointerup", () => { this.isFiring = false; });
     // --- Interior shading (slightly darker rooms)
-    // --- Darkness + player light (soft circle hole)
-    this.darkRect = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.55)
-      .setOrigin(0, 0).setScrollFactor(0).setDepth(3500);
-
-    this.lightMaskGfx = this.make.graphics({ x: 0, y: 0, add: false });
-    this.lightMask = this.lightMaskGfx.createGeometryMask();
-    this.lightMask.invertAlpha = true; // show everything except the white circle (hole)
-    this.darkRect.setMask(this.lightMask);
+    // (Light system removed)
 
     // UI
     this.ui = this.add.text(12, 12, "", {
@@ -342,8 +335,6 @@ class MainScene extends Phaser.Scene {
       if (this.invHint) this.invHint.setPosition(cx - 200, cy + 70);
 
       if (this.gameOverText) this.gameOverText.setPosition(cx, cy);
-
-      if (this.darkRect) this.darkRect.setSize(this.scale.width, this.scale.height);
     });
 
 
@@ -351,15 +342,6 @@ class MainScene extends Phaser.Scene {
     this.spawnTimer = 0;
     this.spawnInterval = 1100;
     this.maxZombies = 18;
-
-    // update player light hole
-    const inRoom = this._isInInterior(this.player.x, this.player.y);
-    const radius = inRoom ? 150 : 220;
-    const px = this.player.x - this.cameras.main.worldView.x;
-    const py = this.player.y - this.cameras.main.worldView.y;
-    this.lightMaskGfx.clear();
-    this.lightMaskGfx.fillStyle(0xffffff, 1);
-    this.lightMaskGfx.fillCircle(px, py, radius);
 
     this._updateUI();
     this._renderInventory();
