@@ -32,12 +32,51 @@ class MainScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor("#0b0f12");
     this.physics.world.setBounds(0, 0, WORLD.w, WORLD.h);
-
-    // Grid background
+    // Terrain background (simple procedural landscape)
     const bg = this.add.graphics();
-    bg.lineStyle(1, 0x1b2a33, 0.25);
-    for (let x = 0; x <= WORLD.w; x += 50) bg.lineBetween(x, 0, x, WORLD.h);
-    for (let y = 0; y <= WORLD.h; y += 50) bg.lineBetween(0, y, WORLD.w, y);
+    bg.fillStyle(0x0b1a12, 1);
+    bg.fillRect(0, 0, WORLD.w, WORLD.h);
+
+    // grass patches
+    bg.fillStyle(0x113321, 0.35);
+    for (let i = 0; i < 220; i++) {
+      const x = Phaser.Math.Between(0, WORLD.w);
+      const y = Phaser.Math.Between(0, WORLD.h);
+      const r = Phaser.Math.Between(40, 140);
+      bg.fillCircle(x, y, r);
+    }
+
+    // dirt paths
+    bg.fillStyle(0x3a2f22, 0.55);
+    for (let i = 0; i < 12; i++) {
+      const x = Phaser.Math.Between(100, WORLD.w - 100);
+      const y = Phaser.Math.Between(100, WORLD.h - 100);
+      const w = Phaser.Math.Between(260, 520);
+      const h = Phaser.Math.Between(40, 80);
+      bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, 18);
+    }
+
+    // water ponds (also colliders)
+    this.water = this.physics.add.staticGroup();
+    bg.fillStyle(0x0a3a5a, 0.75);
+    for (let i = 0; i < 4; i++) {
+      const x = Phaser.Math.Between(250, WORLD.w - 250);
+      const y = Phaser.Math.Between(250, WORLD.h - 250);
+      const w = Phaser.Math.Between(220, 420);
+      const h = Phaser.Math.Between(160, 320);
+      bg.fillEllipse(x, y, w, h);
+
+      // invisible collider matching the pond bounds (approx)
+      const pond = this.water.create(x, y, "wall");
+      pond.setAlpha(0);
+      pond.setDisplaySize(w * 0.9, h * 0.9);
+      pond.refreshBody();
+    }
+
+    // subtle grid overlay to help navigation
+    bg.lineStyle(1, 0x1b2a33, 0.18);
+    for (let x = 0; x <= WORLD.w; x += 100) bg.lineBetween(x, 0, x, WORLD.h);
+    for (let y = 0; y <= WORLD.h; y += 100) bg.lineBetween(0, y, WORLD.w, y);
     bg.setDepth(-10);
 
     // State
@@ -82,14 +121,20 @@ class MainScene extends Phaser.Scene {
     this.bullets = this.physics.add.group();
     this.crates = this.physics.add.staticGroup();
     this.walls = this.physics.add.staticGroup();
+    this.doors = this.physics.add.staticGroup();
 
     // Simple houses
     this._spawnHouses();
-    this._spawnCrates(18);
+    this._spawnDecor();
+    this._spawnCrates(20);
 
     // Collisions
     this.physics.add.collider(this.player, this.walls);
+    this.physics.add.collider(this.player, this.doors);
+    if (this.water) this.physics.add.collider(this.player, this.water);
     this.physics.add.collider(this.zombies, this.walls);
+    this.physics.add.collider(this.zombies, this.doors);
+    if (this.water) this.physics.add.collider(this.zombies, this.water);
     this.physics.add.collider(this.zombies, this.zombies);
 
     this.physics.add.overlap(this.bullets, this.zombies, (b, z) => {
@@ -209,7 +254,7 @@ class MainScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.R)) this._reload();
-    if (Phaser.Input.Keyboard.JustDown(this.keys.E)) this._tryLoot();
+    if (Phaser.Input.Keyboard.JustDown(this.keys.E)) this._tryInteract();
 
     // Zombie spawn
     this.spawnTimer += delta;
@@ -300,6 +345,7 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  
   _addWall(cx, cy, w, h, gap) {
     const addBlock = (x, y, ww, hh) => {
       const s = this.walls.create(x, y, "wall");
@@ -307,20 +353,76 @@ class MainScene extends Phaser.Scene {
       s.refreshBody();
     };
 
-    if (!gap) return addBlock(cx, cy, w, h);
+    const addDoor = (x, y, ww, hh) => {
+      const d = this.doors.create(x, y, "wall"); // reuse texture; we tint it
+      d.setTint(0x7aa7ff);
+      d.setAlpha(1);
+      d.setDisplaySize(ww, hh);
+      d.isOpen = false;
+      d.refreshBody();
+    };
+
+    if (!gap) {
+      addBlock(cx, cy, w, h);
+      return;
+    }
 
     if (w > h) {
+      // horizontal wall with a door gap in the middle
       const seg = (w - gap) / 2;
       const off = (gap + seg) / 2;
       addBlock(cx - off, cy, seg, h);
       addBlock(cx + off, cy, seg, h);
+      addDoor(cx, cy, gap, h);
     } else {
+      // vertical wall with a door gap in the middle
       const seg = (h - gap) / 2;
       const off = (gap + seg) / 2;
       addBlock(cx, cy - off, w, seg);
       addBlock(cx, cy + off, w, seg);
+      addDoor(cx, cy, w, gap);
     }
   }
+
+
+  _spawnDecor() {
+    // Trees & rocks as navigation/cover
+    this.decor = this.physics.add.staticGroup();
+
+    const makeTree = (x, y) => {
+      const t = this.decor.create(x, y, "wall");
+      t.setAlpha(0);
+      t.setDisplaySize(26, 26);
+      t.refreshBody();
+
+      const crown = this.add.circle(x, y - 8, 18, 0x1f5a36, 0.95);
+      const trunk = this.add.rectangle(x, y + 10, 8, 14, 0x4b3621, 0.95);
+      crown.setDepth(-1);
+      trunk.setDepth(-1);
+    };
+
+    const makeRock = (x, y) => {
+      const r = this.decor.create(x, y, "wall");
+      r.setAlpha(0);
+      r.setDisplaySize(24, 18);
+      r.refreshBody();
+
+      const rock = this.add.ellipse(x, y, 28, 20, 0x6b7280, 0.9);
+      rock.setDepth(-1);
+    };
+
+    for (let i = 0; i < 55; i++) {
+      makeTree(Phaser.Math.Between(80, WORLD.w - 80), Phaser.Math.Between(80, WORLD.h - 80));
+    }
+    for (let i = 0; i < 35; i++) {
+      makeRock(Phaser.Math.Between(80, WORLD.w - 80), Phaser.Math.Between(80, WORLD.h - 80));
+    }
+
+    // Collide with player/zombies
+    this.physics.add.collider(this.player, this.decor);
+    this.physics.add.collider(this.zombies, this.decor);
+  }
+
 
   _spawnCrates(n) {
     for (let i = 0; i < n; i++) {
@@ -375,6 +477,46 @@ class MainScene extends Phaser.Scene {
     this.ammo += take;
   }
 
+
+  _tryInteract() {
+    // 1) Door interaction (toggle) if near a door
+    let nearest = null;
+    let bestD = 999999;
+
+    if (this.doors) {
+      this.doors.children.iterate((d) => {
+        if (!d || !d.active) return;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, d.x, d.y);
+        if (dist < 70 && dist < bestD) {
+          bestD = dist;
+          nearest = d;
+        }
+      });
+    }
+
+    if (nearest) {
+      // toggle open/closed
+      const isOpen = nearest.isOpen === true;
+      if (isOpen) {
+        nearest.isOpen = false;
+        nearest.setAlpha(1);
+        nearest.body.enable = true;
+        nearest.refreshBody();
+        this._flashHint("Tür geschlossen");
+      } else {
+        nearest.isOpen = true;
+        nearest.setAlpha(0.15);
+        nearest.body.enable = false; // pass through
+        this._flashHint("Tür geöffnet");
+      }
+      return;
+    }
+
+    // 2) Otherwise loot crates
+    this._tryLoot();
+  }
+
+
   _tryLoot() {
     let best = null, bestD = 999999;
     this.crates.children.iterate((c) => {
@@ -410,7 +552,7 @@ class MainScene extends Phaser.Scene {
   _updateUI() {
     this.ui.setText(
       `HP: ${this.hp}   Ammo: ${this.ammo}/${this.reserve}   Packs: ${this.inv?.ammoPack ?? 0}   Med: ${this.inv?.medkit ?? 0}   Score: ${this.score}\n` +
-      `WASD bewegen | Maus zielen | LMB schießen | R reload | E looten | I Inventar | 1 Medkit | 2 Ammo-Pack`
+      `WASD bewegen | Maus zielen | LMB schießen | R reload | E Tür/Loot | I Inventar | 1 Medkit | 2 Ammo-Pack`
     );
   }
 
