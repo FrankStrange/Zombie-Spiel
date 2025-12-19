@@ -56,7 +56,7 @@ class MainScene extends Phaser.Scene {
     g.lineStyle(1, 0x2f4554, 0.55);
     for (let x = 0; x <= 50; x += 10) g.lineBetween(x, 0, x, 50);
     for (let y = 0; y <= 50; y += 10) g.lineBetween(0, y, 50, y);
-    g.generateTexture("tile_floor", 50, 50);
+    g.generateTexture("tile_parquet", 50, 50);
 
     g.clear();
     g.fillStyle(0x0a3a5a, 1);
@@ -85,6 +85,69 @@ class MainScene extends Phaser.Scene {
     g.fillStyle(0x4c79b8, 0.55);
     g.fillRect(6, 6, 38, 38);
     g.generateTexture("tile_door", 50, 50);
+
+
+    // Parquet floor tile (brown wood)
+    g.clear();
+    g.fillStyle(0x4a2e1f, 1);
+    g.fillRect(0, 0, 50, 50);
+    g.fillStyle(0x5a3a27, 1);
+    // planks
+    for (let y = 0; y < 50; y += 10) {
+      g.fillRect(0, y, 50, 8);
+    }
+    g.fillStyle(0x3b2418, 0.45);
+    for (let i = 0; i < 22; i++) {
+      const x = Phaser.Math.Between(0, 49);
+      const y = Phaser.Math.Between(0, 49);
+      g.fillRect(x, y, Phaser.Math.Between(1, 3), 1);
+    }
+    g.generateTexture("tile_parquet", 50, 50);
+
+    // Furniture props (simple pixel-ish)
+    // Bed (70x40)
+    g.clear();
+    g.fillStyle(0x6b4f3a, 1); // frame
+    g.fillRect(0, 0, 70, 40);
+    g.fillStyle(0x2b2b2b, 0.35);
+    g.fillRect(0, 0, 70, 6);
+    g.fillStyle(0xbfd7ff, 1); // pillow
+    g.fillRect(6, 6, 20, 10);
+    g.fillStyle(0x8bbf6a, 1); // blanket
+    g.fillRect(6, 18, 58, 16);
+    g.generateTexture("prop_bed", 70, 40);
+
+    // Wardrobe (40x60)
+    g.clear();
+    g.fillStyle(0x5a3a27, 1);
+    g.fillRect(0, 0, 40, 60);
+    g.fillStyle(0x3b2418, 1);
+    g.fillRect(18, 0, 4, 60);
+    g.fillStyle(0xd7d7d7, 1);
+    g.fillCircle(13, 30, 2);
+    g.fillCircle(27, 30, 2);
+    g.generateTexture("prop_wardrobe", 40, 60);
+
+    // Table (44x44)
+    g.clear();
+    g.fillStyle(0x6b4f3a, 1);
+    g.fillRect(0, 0, 44, 44);
+    g.fillStyle(0x3b2418, 0.55);
+    g.fillRect(0, 0, 44, 6);
+    g.fillRect(0, 38, 44, 6);
+    g.fillRect(0, 0, 6, 44);
+    g.fillRect(38, 0, 6, 44);
+    g.generateTexture("prop_table", 44, 44);
+
+    // Sofa (70x32)
+    g.clear();
+    g.fillStyle(0x3b4b6b, 1);
+    g.fillRect(0, 0, 70, 32);
+    g.fillStyle(0x2a354b, 1);
+    g.fillRect(0, 0, 70, 8);
+    g.fillStyle(0x6b86c9, 1);
+    g.fillRect(6, 10, 58, 16);
+    g.generateTexture("prop_sofa", 70, 32);
 
     g.destroy();
   }
@@ -239,6 +302,20 @@ class MainScene extends Phaser.Scene {
     this.input.on("pointerdown", (p) => { if (!this.gameOver && p.leftButtonDown()) this.isFiring = true; });
     this.input.on("pointerup", () => { this.isFiring = false; });
 
+
+    // --- Interior shading (slightly darker rooms)
+    this.interiorShades = [];
+    // created in _spawnHouses after interiors are known
+
+    // --- Darkness + player light (soft circle hole)
+    this.darkRect = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.55)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(3500);
+
+    this.lightMaskGfx = this.make.graphics({ x: 0, y: 0, add: false });
+    this.lightMask = this.lightMaskGfx.createGeometryMask();
+    this.lightMask.invertAlpha = true; // show everything except the white circle (hole)
+    this.darkRect.setMask(this.lightMask);
+
     // UI
     this.ui = this.add.text(12, 12, "", {
       fontFamily: "system-ui, Segoe UI, Arial",
@@ -269,6 +346,8 @@ class MainScene extends Phaser.Scene {
       if (this.invHint) this.invHint.setPosition(cx - 200, cy + 70);
 
       if (this.gameOverText) this.gameOverText.setPosition(cx, cy);
+
+      if (this.darkRect) this.darkRect.setSize(this.scale.width, this.scale.height);
     });
 
 
@@ -345,6 +424,15 @@ class MainScene extends Phaser.Scene {
   }
 
 
+
+  _isInInterior(x, y) {
+    if (!this.interiors) return false;
+    for (const r of this.interiors) {
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return true;
+    }
+    return false;
+  }
+
   _toggleInventory() {
     this.invOpen = !this.invOpen;
     this.invPanel.setVisible(this.invOpen);
@@ -420,6 +508,11 @@ class MainScene extends Phaser.Scene {
       };
       this.interiors.push(interior);
 
+      // Slightly darken interiors compared to outside
+      const shade = this.add.rectangle(interior.x + interior.w/2, interior.y + interior.h/2, interior.w, interior.h, 0x000000, 0.18)
+        .setDepth(-4);
+      this.interiorShades.push(shade);
+
       // Interior floor tiles
       const TILE = 50;
       const x0 = Math.floor(interior.x / TILE) * TILE;
@@ -432,7 +525,7 @@ class MainScene extends Phaser.Scene {
           const cx = x + TILE / 2;
           const cy = y + TILE / 2;
           if (cx < interior.x || cy < interior.y || cx > interior.x + interior.w || cy > interior.y + interior.h) continue;
-          this.add.image(cx, cy, "tile_floor").setDepth(-5);
+          this.add.image(cx, cy, "tile_parquet").setDepth(-5);
         }
       }
 
@@ -447,89 +540,42 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  
   _spawnFurnitureIn(interior, count) {
     const tries = 30;
+    const props = [
+      { key: "prop_bed", w: 70, h: 40 },
+      { key: "prop_wardrobe", w: 40, h: 60 },
+      { key: "prop_table", w: 44, h: 44 },
+      { key: "prop_sofa", w: 70, h: 32 },
+    ];
 
     for (let i = 0; i < count; i++) {
       let placed = false;
+
       for (let t = 0; t < tries && !placed; t++) {
-        const w = Phaser.Math.Between(30, 76);
-        const h = Phaser.Math.Between(22, 62);
+        const p = Phaser.Utils.Array.GetRandom(props);
+        const w = p.w;
+        const h = p.h;
+
         const x = Phaser.Math.Between(interior.x + w / 2, interior.x + interior.w - w / 2);
         const y = Phaser.Math.Between(interior.y + h / 2, interior.y + interior.h - h / 2);
 
+        // Keep some walking space in the middle
         const centerDist = Phaser.Math.Distance.Between(x, y, interior.x + interior.w / 2, interior.y + interior.h / 2);
-        if (centerDist < 44) continue;
+        if (centerDist < 48) continue;
 
         const f = this.furniture.create(x, y, "wall");
         f.setAlpha(0);
         f.setDisplaySize(w, h);
         f.refreshBody();
 
-        const vis = this.add.rectangle(x, y, w, h, 0x6b4f3a, 0.92).setDepth(-4);
-        vis.setStrokeStyle(2, 0x3b2b20, 0.6);
+        this.add.image(x, y, p.key).setDepth(-3);
 
         placed = true;
       }
     }
   }
-
-
-
-  _addWall(cx, cy, w, h, gap) {
-    const addBlock = (x, y, ww, hh) => {
-      const s = this.walls.create(x, y, "wall");
-      s.setDisplaySize(ww, hh);
-      s.refreshBody();
-
-      // Visual wall tiles (tilemap look)
-      const TILE = 50;
-      const cols = Math.max(1, Math.round(ww / TILE));
-      const rows = Math.max(1, Math.round(hh / TILE));
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          this.add.image(
-            x - ww / 2 + TILE / 2 + c * TILE,
-            y - hh / 2 + TILE / 2 + r * TILE,
-            "tile_wall"
-          ).setDepth(-3);
-        }
-      }
-    };
-
-    const addDoor = (x, y, ww, hh) => {
-      const d = this.doors.create(x, y, "wall"); // collider body
-      d.setAlpha(1);
-      d.setDisplaySize(ww, hh);
-      d.isOpen = false;
-      d.refreshBody();
-
-      // visual
-      const vis = this.add.image(x, y, "tile_door").setDepth(-2);
-      vis.setDisplaySize(Math.max(ww, 22), Math.max(hh, 22));
-      d._vis = vis;
-    };
-
-    if (!gap) {
-      addBlock(cx, cy, w, h);
-      return;
-    }
-
-    if (w > h) {
-      const seg = (w - gap) / 2;
-      const off = (gap + seg) / 2;
-      addBlock(cx - off, cy, seg, h);
-      addBlock(cx + off, cy, seg, h);
-      addDoor(cx, cy, gap, h);
-    } else {
-      const seg = (h - gap) / 2;
-      const off = (gap + seg) / 2;
-      addBlock(cx, cy - off, w, seg);
-      addBlock(cx, cy + off, w, seg);
-      addDoor(cx, cy, w, gap);
-    }
-  }
-
 
   _spawnDecor() {
     // Trees & rocks as navigation/cover
