@@ -475,6 +475,62 @@ class MainScene extends Phaser.Scene {
   }
 
 
+
+  _addWall(cx, cy, w, h, gap) {
+    const addBlock = (x, y, ww, hh) => {
+      const s = this.walls.create(x, y, "wall");
+      s.setDisplaySize(ww, hh);
+      s.refreshBody();
+
+      // Visual wall tiles (tilemap look)
+      const TILE = 50;
+      const cols = Math.max(1, Math.round(ww / TILE));
+      const rows = Math.max(1, Math.round(hh / TILE));
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          this.add.image(
+            x - ww / 2 + TILE / 2 + c * TILE,
+            y - hh / 2 + TILE / 2 + r * TILE,
+            "tile_wall"
+          ).setDepth(-3);
+        }
+      }
+    };
+
+    const addDoor = (x, y, ww, hh) => {
+      const d = this.doors.create(x, y, "wall"); // collider body
+      d.setAlpha(1);
+      d.setDisplaySize(ww, hh);
+      d.isOpen = false;
+      d.refreshBody();
+
+      // visual
+      const vis = this.add.image(x, y, "tile_door").setDepth(-2);
+      vis.setDisplaySize(Math.max(ww, 22), Math.max(hh, 22));
+      d._vis = vis;
+    };
+
+    if (!gap) {
+      addBlock(cx, cy, w, h);
+      return;
+    }
+
+    if (w > h) {
+      const seg = (w - gap) / 2;
+      const off = (gap + seg) / 2;
+      addBlock(cx - off, cy, seg, h);
+      addBlock(cx + off, cy, seg, h);
+      addDoor(cx, cy, gap, h);
+    } else {
+      const seg = (h - gap) / 2;
+      const off = (gap + seg) / 2;
+      addBlock(cx, cy - off, w, seg);
+      addBlock(cx, cy + off, w, seg);
+      addDoor(cx, cy, w, gap);
+    }
+  }
+
+
   _spawnDecor() {
     // Trees & rocks as navigation/cover
     this.decor = this.physics.add.staticGroup();
