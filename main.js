@@ -8,7 +8,7 @@
    - ENTER: restart on game over
 */
 
-console.log("main.js läuft ✅");
+console.log("NEUE MAIN.JS IST AKTIV ✅ 2025-12-19");
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
